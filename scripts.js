@@ -3,13 +3,12 @@ var numberOfShips = 150;
 var centerOfMassX;
 var centerOfMassY;
 var Boids = [];
-var neighborDist = 175;
-var separationDist = 10;
+var neighborDist = 120;
+var separationDist = 0;
 var turnspeed = 25;
-// var parameter = Math.PI * Math.random() / 1.1;
-var parameter = 0;
+var parameter;
 var star;
-var velocity = 100;
+var velocity = 120;
 
 function randPlusMinus(){
   if (Math.random() > .5){
@@ -41,16 +40,15 @@ function create() {
     //set Phaser physics
     this.sprite.scale.setTo(.25, .25);
     game.physics.arcade.enable(this.sprite);
-    // this.sprite.body.collideWorldBounds = true;
     this.sprite.anchor.set(0.5);
     this.sprite.body.angularVelocity = 200;
-    // this.sprite.body.collideWorldBounds = true;
-    //
-    // //  By default the Signal is empty, so we create it here:
-    // this.sprite.body.onWorldBounds = new Phaser.Signal();
-    //
-    // //  And then listen for it
-    // this.sprite.body.onWorldBounds.add(hitWorldBounds, this);
+    this.sprite.body.collideWorldBounds = true;
+
+    game.physics.arcade.checkCollision.right = false;
+    game.physics.arcade.checkCollision.left = false;
+    this.sprite.body.onWorldBounds = new Phaser.Signal();
+
+    this.sprite.body.onWorldBounds.add(hitWorldBounds, this);
 
     function hitWorldBounds(){
       console.log("WALL");
@@ -130,37 +128,33 @@ function create() {
       return new Phaser.Point(neighborhoodCenterOfMassX, neighborhoodCenterOfMassY);
     };
     //returns an angle representing the direction to move away from all neighbors which are too close.
-    this.getSeparationAdj = function() {
-      // tooCloseCount = this.neighbors.reduce(function(accumulator, neighbor){
-      //   if (neighbor && neighbor.dist < separationDist){
-      //     return accumulator + 1;
-      //   } else {
-      //     return accumulator;
-      //   }
-      // }, 0);
-
-      // return this.neighbors.reduce(function(accumulator, neighbor, i){
-      //     if (neighbor && neighbor.dist < separationDist) {
-      //       return accumulator + neighbor.angle - 180;
-      //     } else {
-      //       return accumulator;
-      //     }
-      //   }, 0) / tooCloseCount;
-
-      this.neighbors.forEach(function(neighbor, i){
-        if (neighbor && Math.abs(neighbor.x - this.sprite.x) < separationDist ){
-          this.sprite.x = this.sprite.x  + (this.sprite.x - neighbor.x ) / 2;
-        }
-        if (neighbor && Math.abs(neighbor.y - this.sprite.y) < separationDist ){
-          this.sprite.y = this.sprite.y  + (this.sprite.y - neighbor.y ) / 2;
-        }
-
-      }, this);
-
-
-
+    this.separationCheck = function() {
+      return this.neighbors.some(function(neighbor){
+          return (neighbor && neighbor.dist < separationDist);
+      });
     };
-    //returns an angle representing the averaged direction of all neighbors
+    this.separationAdj = function(){
+      angle = 0;
+      this.neighbors.forEach(function(neighbor){
+        if(neighbor && neighbor.dist < separationDist) {
+          angle = neighbor.angle + angle;
+        }
+      }, this);
+      // this.sprite.body.rotation = -1 * angle;
+      // this.sprite.body.velocity = game.physics.arcade.velocityFromAngle(-1 * angle * 180 / Math.PI);
+      if (this.sprite.body.rotation < angle ) {
+        this.turn = turnspeed * 10;
+      } else if (this.sprite.body.rotation > angle){
+        this.turn = -turnspeed * 10;
+      }
+      else {
+        this.turn = 0;
+      }
+
+
+      screenWrap(this.sprite);
+    };
+
     this.getNeighborhoodDirection = function(){
       neighborCount = this.neighborCount(this.neighbors);
       return this.neighbors.reduce(function(accumulator, neighbor){
@@ -171,27 +165,19 @@ function create() {
         }
       }, 0) / neighborCount;
     }
-
-    this.turnToAngle = function(angle){
-
-    }
-
     this.move = function(){
-      this.getNeighbors();
+
       this.neighborCount();
       if (this.noNeighbors) {
         movementAngle = Math.PI * Math.random() * randPlusMinus();
       } else {
-        angleToCenterOfMass = game.physics.arcade.angleBetween(this.sprite, this.getNeighborhoodCenterOfMass());
-        // separationAdj = this.getSeparationAdj();
-        neighborhoodDirection = this.getNeighborhoodDirection();
-        // if (separationAdj){
-        //   movementAngle = (neighborhoodDirection + angleToCenterOfMass + separationAdj) / 3;
-        // } else {
-        //   movementAngle = (neighborhoodDirection + angleToCenterOfMass) / 2;
-        // }
 
-        movementAngle = (neighborhoodDirection + angleToCenterOfMass) / 2;
+        angleToCenterOfMass = game.physics.arcade.angleBetween(this.sprite, this.getNeighborhoodCenterOfMass());
+        neighborhoodDirection = this.getNeighborhoodDirection();
+
+
+        parameter = Math.PI * Math.random() * randPlusMinus();
+        movementAngle = neighborhoodDirection;
 
         if (this.sprite.rotation < movementAngle ) {
           this.turn = turnspeed;
@@ -209,34 +195,29 @@ function create() {
     }
   }
 
-
   for (var i = 0; i < numberOfShips; i++) {
     Boids[i] = new Boid(game.add.sprite(Math.random() * 1000, Math.random() * 800, 'red-ship'), [], velocity, Math.PI * Math.random() * randPlusMinus(), i);
   }
-
-
-
-
 }
 
 
 function screenWrap (sprite) {
-
-    if (sprite.x < 0)
-    {
-        sprite.x = game.width;
-    }
-    else if (sprite.x > game.width)
-    {
-        sprite.x = 0;
-    }
+    if (sprite.x < 0) { sprite.x = game.width; }
+    else if (sprite.x > game.width) { sprite.x = 0; }
 }
 
 function update() {
   Boids.forEach(function(boid){
-    // boid.getSeparationAdj();
-    boid.move();
-    boid.sprite.body.angularVelocity = boid.turn;
-    game.physics.arcade.velocityFromRotation(boid.sprite.rotation, boid.velocity, boid.sprite.body.velocity);
+    boid.getNeighbors();
+    if (boid.separationCheck()){
+      boid.separationAdj();
+      boid.sprite.body.angularVelocity = boid.turn;
+      game.physics.arcade.velocityFromRotation(boid.sprite.rotation, boid.velocity, boid.sprite.body.velocity);
+    } else {
+      boid.move();
+      boid.sprite.body.angularVelocity = boid.turn;
+      game.physics.arcade.velocityFromRotation(boid.sprite.rotation, boid.velocity, boid.sprite.body.velocity);
+    }
+
   });
 }
